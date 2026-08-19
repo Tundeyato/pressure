@@ -1,6 +1,6 @@
 /* Pressure — offline service worker.
    Bump CACHE when you ship a change; old caches are cleared on activate. */
-const CACHE = "pressure-v35-2";
+const CACHE = "pressure-v36-1";
 const SHELL = [
   "./",
   "./index.html",
