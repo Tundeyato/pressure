@@ -507,6 +507,7 @@ details.acc .accbody p{margin:0 0 8px}
 
     <div class="card">
       <h2>Session history</h2>
+      <p class="h2sub">Tap × to delete anything logged by mistake.</p>
       <div style="overflow-x:auto"><table><thead><tr><th>When</th><th>Type</th><th>Min</th><th>Detail</th><th></th></tr></thead><tbody id="stb"></tbody></table></div>
       <div class="empty" id="sEmpty" hidden>No sessions logged yet.</div>
     </div>
@@ -902,7 +903,7 @@ details.acc .accbody p{margin:0 0 8px}
 <script src="chart.umd.js"></script>
 <script>
 "use strict";
-var APP_VERSION = "v36.1";
+var APP_VERSION = "v37.1";
 var KEY = "pressure.v1";
 var DEF_TAGS = ["exercised today","after exercise","alcohol last night","salty food","slept badly","stressed","caffeine","unwell"];
 var DEF_REG = [{name:"beetroot extract",active:false,daily:true},{name:"beetroot gummy",active:false,daily:true},{name:"isometric exercise",active:false,daily:false},{name:"aerobic exercise",active:false,daily:false},{name:"potassium-rich diet",active:false},{name:"cut back salt",active:false},{name:"BP medication",active:false,daily:true}];
@@ -1178,8 +1179,11 @@ function renderDash(){
   var todayR = R.filter(function(r){ return dayKey(r) === today; });
   var r7 = within(R, 7), r30 = within(R, 30);
 
+  var now = new Date();
   var html = '<h2 class="dashHi">' + greeting() + '</h2>'
-    + '<p class="dashSub">' + new Date().toLocaleDateString(undefined,{weekday:"long", day:"numeric", month:"long"}) + '</p>';
+    + '<p class="dashSub">' + now.toLocaleDateString(undefined,{weekday:"long", day:"numeric", month:"long"})
+    + ' <span id="dashClock" style="color:var(--ink);font-weight:500">'
+    + now.toLocaleTimeString(undefined,{hour:"numeric", minute:"2-digit"}) + '</span></p>';
 
   /* main ring: latest reading against target */
   if(R.length){
@@ -1286,6 +1290,19 @@ function renderEntryHint(){
   el.textContent = todayR.length
     ? todayR.length + " logged today \u2014 tap to add another"
     : "tap to log one";
+}
+var clockTimer = null;
+function startClock(){
+  if(clockTimer) clearInterval(clockTimer);
+  var lastHour = new Date().getHours();
+  clockTimer = setInterval(function(){
+    var el = document.getElementById("dashClock");
+    if(!el) return;
+    var n = new Date();
+    el.textContent = n.toLocaleTimeString(undefined, { hour:"numeric", minute:"2-digit" });
+    /* good morning becomes good afternoon without a reload */
+    if(n.getHours() !== lastHour){ lastHour = n.getHours(); renderDash(); }
+  }, 20000);
 }
 function renderLastSeen(){
   var el = document.getElementById("lastSeen");
@@ -2685,7 +2702,11 @@ function renderSessions(){
                 s.cardio.dist ? s.cardio.dist + " dist" : null].filter(Boolean).join(" \u00b7 "));
     }
     if(s.sets && s.sets.length){
-      det.push(s.sets.map(function(x){ return esc(x.ex) + " " + x.sets + "\u00d7" + x.reps + (x.wt ? " @" + x.wt : ""); }).join("<br>"));
+      det.push(s.sets.map(function(x){
+        if(x.sets == null && x.mins != null) return esc(x.ex) + " " + x.mins + " min";
+        if(x.sets == null) return esc(x.ex);
+        return esc(x.ex) + " " + x.sets + "\u00d7" + x.reps + (x.wt ? " @" + x.wt : "");
+      }).join("<br>"));
     }
     if(s.rpe){
       var rl = { 2:"very easy", 4:"easy", 5:"moderate", 6:"working", 7:"hard", 8:"very hard", 9:"nearly all out", 10:"maximum" }[s.rpe] || "";
@@ -2930,6 +2951,8 @@ function renderToday(){
     var col = it.tag === "BP block" ? "#7A5CA8" : (isCardio ? "#2A6FB5" : "#1F6F63");
     var m = /^(\d+)\s*x\s*([\d\-]+)/.exec(it.sets);
     var tgtSets = m ? m[1] : "", tgtReps = m ? parseInt(m[2],10) : "";
+    var cm = /^(\d+)\s*minutes/.exec(it.sets);
+    var tgtMin = cm ? cm[1] : "";
     var prev = lastLift(it.ex);
     var lastLine = "";
     if(prev){
@@ -2944,14 +2967,24 @@ function renderToday(){
       +   '<div class="fname">' + it.ex + (it.tag ? ' <span class="pill">' + it.tag + '</span>' : '')
       +     '<div class="lab" style="margin-top:3px">Target ' + it.sets + '</div>' + lastLine + '</div>'
       +   '<div class="fchev">\u203A</div></div>'
-      + '<div style="display:grid;grid-template-columns:52px 52px 70px 1fr;gap:7px;align-items:center;margin-top:11px">'
-      +   '<input type="number" inputmode="numeric" class="lgSets" placeholder="' + (tgtSets || "sets") + '" min="0">'
-      +   '<input type="number" inputmode="numeric" class="lgReps" placeholder="' + (tgtReps || "reps") + '" min="0">'
-      +   '<input type="number" inputmode="decimal" class="lgWt" placeholder="' + (prev && prev.set.wt ? prev.set.wt : "wt") + '" min="0">'
-      +   '<span style="justify-self:end;display:flex;gap:6px">'
-      +     '<button type="button" class="tag asPlanned" title="Fill in the target">\u2713</button>'
-      +     '<button type="button" class="tag swapBtn">Swap</button></span>'
-      + '</div>'
+      + (isCardio
+        ? '<div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin-top:11px">'
+          +   '<input type="number" inputmode="numeric" class="lgMin" min="0" placeholder="' + (tgtMin || "mins") + '">'
+          +   '<input type="number" inputmode="decimal" class="lgSpd" min="0" step="0.1" placeholder="speed">'
+          +   '<input type="number" inputmode="decimal" class="lgInc" min="0" step="0.5" placeholder="incline">'
+          +   '<input type="number" inputmode="decimal" class="lgDist" min="0" step="0.01" placeholder="dist">'
+          + '</div>'
+          + '<div style="display:flex;justify-content:flex-end;gap:6px;margin-top:7px">'
+          +   '<button type="button" class="tag asPlanned" title="Fill in the target">\u2713</button>'
+          +   '<button type="button" class="tag swapBtn">Swap</button></div>'
+        : '<div style="display:grid;grid-template-columns:52px 52px 70px 1fr;gap:7px;align-items:center;margin-top:11px">'
+          +   '<input type="number" inputmode="numeric" class="lgSets" placeholder="' + (tgtSets || "sets") + '" min="0">'
+          +   '<input type="number" inputmode="numeric" class="lgReps" placeholder="' + (tgtReps || "reps") + '" min="0">'
+          +   '<input type="number" inputmode="decimal" class="lgWt" placeholder="' + (prev && prev.set.wt ? prev.set.wt : "wt") + '" min="0">'
+          +   '<span style="justify-self:end;display:flex;gap:6px">'
+          +     '<button type="button" class="tag asPlanned" title="Fill in the target">\u2713</button>'
+          +     '<button type="button" class="tag swapBtn">Swap</button></span>'
+          + '</div>')
       + '<div class="fbody">'
       +   (c ? '<p><b>Set up.</b> ' + c[0] + '</p><p><b>The movement.</b> ' + c[1] + '</p><p><b>What usually goes wrong.</b> ' + c[2] + '</p>'
              : '<p>No cue written for this one yet.</p>')
@@ -3034,6 +3067,12 @@ function renderToday(){
     b.onclick = function(e){
       e.stopPropagation();
       var card = b.closest(".exCard");
+      var mEl = card.querySelector(".lgMin");
+      if(mEl){
+        if(mEl.placeholder.match(/^\d+$/)) mEl.value = mEl.placeholder;
+        b.textContent = "\u2713 done"; b.setAttribute("aria-pressed","true");
+        return;
+      }
       var sEl = card.querySelector(".lgSets"), rEl = card.querySelector(".lgReps"), wEl = card.querySelector(".lgWt");
       sEl.value = sEl.placeholder.match(/^\d+$/) ? sEl.placeholder : "";
       rEl.value = rEl.placeholder.match(/^\d+$/) ? rEl.placeholder : "";
@@ -3044,8 +3083,20 @@ function renderToday(){
   });
 
   document.getElementById("logWhole").onclick = function(){
-    var sets = [];
+    var sets = [], cardio = { speed:null, incline:null, dist:null }, cardioMin = 0, didCardio = false;
     Array.prototype.forEach.call(box.querySelectorAll(".exCard"), function(card){
+      var minEl = card.querySelector(".lgMin");
+      if(minEl){
+        var mm = minEl.value, sp = card.querySelector(".lgSpd").value;
+        var inc = card.querySelector(".lgInc").value, di = card.querySelector(".lgDist").value;
+        if(!mm && !sp && !inc && !di) return;
+        didCardio = true; cardioMin += +mm || 0;
+        if(sp) cardio.speed = +sp;
+        if(inc) cardio.incline = +inc;
+        if(di) cardio.dist = +di;
+        sets.push({ ex:card.dataset.ex, sets:null, reps:null, wt:null, mins:+mm || null });
+        return;
+      }
       var ss = card.querySelector(".lgSets").value;
       var rr = card.querySelector(".lgReps").value;
       var ww = card.querySelector(".lgWt").value;
@@ -3053,15 +3104,21 @@ function renderToday(){
       sets.push({ ex:card.dataset.ex, sets:+ss || null, reps:+rr || null, wt:+ww || null });
     });
     if(!sets.length){ toast("Fill in at least one exercise first"); return; }
+
+    var already = sessions().filter(function(x){ return dkey(new Date(x.at)) === todayStr(); });
+    if(already.length && !confirm("You already have " + already.length + " session logged today.\n\n"
+        + "Save this as another one? If you are correcting a mistake, cancel and delete the old one from Session history first.")) return;
+
+    var strengthCount = sets.filter(function(z){ return z.sets != null; }).length;
     db.sessions = db.sessions || [];
     db.sessions.push({
       id:"s" + Date.now() + Math.random().toString(36).slice(2,5),
       profile: db.activeProfile,
       at: new Date().toISOString(),
-      kind: d.title.indexOf("Lower") === 0 || d.title.indexOf("Full") === 0 ? "Mixed" : "Strength",
-      minutes: s.sessMin || 50,
+      kind: didCardio && strengthCount ? "Mixed" : (didCardio ? "Cardio" : "Strength"),
+      minutes: (cardioMin + (strengthCount ? Math.round((s.sessMin || 50) * 0.6) : 0)) || (s.sessMin || 50),
       rpe: null,
-      cardio: { speed:null, incline:null, dist:null },
+      cardio: cardio,
       sets: sets,
       note: d.title,
       planIdx: idx
@@ -4524,7 +4581,7 @@ function renderAll(){
   document.getElementById("profSel").innerHTML = db.profiles.map(function(p){
     return '<option value="'+p.id+'"'+(p.id===db.activeProfile?" selected":"")+">"+esc(p.name)+"</option>";
   }).join("");
-  renderDash(); renderEntryHint(); renderHero(); renderMetrics(); renderLastSeen();
+  renderDash(); startClock(); renderEntryHint(); renderHero(); renderMetrics(); renderLastSeen();
   if(!document.getElementById("tab-trends").hidden){ drawMain(); drawClock(); drawDist(); drawWeight(); drawPP(); }
   if(!document.getElementById("tab-train").hidden){ /* body chart lives here too */ }
   if(!document.getElementById("tab-focus").hidden){ renderLevers(); }
