@@ -123,6 +123,7 @@ details.acc.good{border-left-color:var(--ok)} details.acc.warn{border-left-color
 details.acc.bad{border-left-color:var(--bad)} details.acc.info{border-left-color:var(--sys)}
 details.acc summary{list-style:none;cursor:pointer;padding:12px 14px;font-size:14px;font-weight:600;display:flex;gap:10px;align-items:flex-start}
 details.acc summary::-webkit-details-marker{display:none}
+summary::marker{content:""}
 details.acc summary::after{content:"\203A";margin-left:auto;color:var(--muted);font-size:19px;line-height:1;transform:rotate(90deg);transition:transform .2s;flex:0 0 auto}
 details.acc[open] summary::after{transform:rotate(-90deg)}
 details.acc summary:focus-visible{outline:2px solid var(--sys);outline-offset:-2px}
@@ -148,6 +149,12 @@ details.acc .accbody p{margin:0 0 8px}
 .ftag{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:3px 9px;border-radius:11px;background:var(--soft);color:var(--muted);margin-top:9px}
 .fwhy{padding:14px 16px;border-radius:12px;background:var(--soft);font-size:13.5px;line-height:1.6;margin-bottom:16px}
 .fflag{margin-top:10px;padding:10px 12px;border-radius:9px;background:rgba(180,85,46,.10);color:var(--ink);font-size:12.5px;line-height:1.55}
+
+@media (max-width:520px){
+  .tags{gap:6px}
+  .tag{font-size:11.5px;padding:7px 10px}
+  #regBox .tag{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+}
 
 /* dashboard */
 .dash{background:linear-gradient(160deg,var(--surface) 0%,var(--surface2) 100%);border:1px solid var(--rule);
@@ -280,10 +287,17 @@ details.acc .accbody p{margin:0 0 8px}
       <form class="entry" id="f" autocomplete="off">
         <div class="full">
           <label>Readings (systolic / diastolic / pulse)</label>
-          <div id="bleRow" style="display:flex;gap:8px;align-items:center;margin-bottom:10px">
-            <button type="button" class="ghost" id="bleBtn" style="width:auto;padding:9px 14px;font-size:13.5px">Connect cuff</button>
-            <span id="bleMsg" style="font-size:12.5px;color:var(--muted)"></span>
-          </div>
+          <details id="bleDetails" style="margin-bottom:10px">
+            <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:2px 0 6px">
+              <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)">Bluetooth cuff</span>
+              <span style="font-size:12px;color:var(--muted)">read the numbers automatically</span>
+              <span style="margin-left:auto;color:var(--muted);font-size:16px">›</span>
+            </summary>
+            <div id="bleRow" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding-bottom:4px">
+              <button type="button" class="ghost" id="bleBtn" style="width:auto;padding:9px 14px;font-size:13.5px">Connect cuff</button>
+              <span id="bleMsg" style="font-size:12.5px;color:var(--muted);flex:1;min-width:160px"></span>
+            </div>
+          </details>
           <div id="trips"></div>
           <div class="avgOut" id="avgOut"></div>
         </div>
@@ -300,8 +314,26 @@ details.acc .accbody p{margin:0 0 8px}
             <button type="button" class="tag" id="wtToggle" style="flex:0 0 auto;padding:0 12px" aria-label="Switch weight unit">kg</button>
           </div>
         </div>
-        <div class="full"><label>Today — tap what applies</label><div class="tags" id="regBox"></div></div>
-        <div class="full"><label>Context — just this reading</label><div class="tags" id="tagBox"></div></div>
+        <div class="full">
+          <details id="regDetails" open>
+            <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:2px 0 8px">
+              <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)">Today</span>
+              <span id="regSummary" style="font-size:12px;color:var(--muted)"></span>
+              <span style="margin-left:auto;color:var(--muted);font-size:16px">›</span>
+            </summary>
+            <div class="tags" id="regBox"></div>
+          </details>
+        </div>
+        <div class="full">
+          <details id="tagDetails">
+            <summary style="cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;padding:2px 0 8px">
+              <span style="font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--muted)">Context</span>
+              <span id="tagSummary" style="font-size:12px;color:var(--muted)">just this reading</span>
+              <span style="margin-left:auto;color:var(--muted);font-size:16px">›</span>
+            </summary>
+            <div class="tags" id="tagBox"></div>
+          </details>
+        </div>
         <div class="full"><div id="carryNote" style="font-size:12.5px;color:var(--warn);line-height:1.5"></div></div>
         <div class="full"><label for="note">Note</label><textarea id="note" placeholder="Anything worth remembering about this reading"></textarea></div>
         <div class="full"><button type="submit" class="go">Save reading</button></div>
@@ -846,7 +878,7 @@ details.acc .accbody p{margin:0 0 8px}
 <script src="chart.umd.js"></script>
 <script>
 "use strict";
-var APP_VERSION = "v32";
+var APP_VERSION = "v34";
 var KEY = "pressure.v1";
 var DEF_TAGS = ["exercised today","after exercise","alcohol last night","salty food","slept badly","stressed","caffeine","unwell"];
 var DEF_REG = [{name:"beetroot extract",active:false,daily:true},{name:"beetroot gummy",active:false,daily:true},{name:"isometric exercise",active:false,daily:false},{name:"aerobic exercise",active:false,daily:false},{name:"potassium-rich diet",active:false},{name:"cut back salt",active:false},{name:"BP medication",active:false,daily:true}];
@@ -1152,27 +1184,27 @@ function renderDash(){
 
   var goalReads = 2;
   rings.push({ pct: Math.min(1, todayR.length / goalReads), col:"#2A6FB5",
-    val: todayR.length + "/" + goalReads, lab:"readings<br>today" });
+    val: todayR.length + "/" + goalReads, lab:"Readings<br>today" });
 
   var t = eatTarget();
   var m = meals().filter(function(x){ return x.d === today; })[0];
   rings.push({ pct: m ? Math.min(1, m.p / t.palms) : 0, col:"#2E7D5B",
-    val: (m ? m.p : 0) + "/" + t.palms, lab:"protein<br>today" });
+    val: (m ? m.p : 0) + "/" + t.palms, lab:"Protein<br>today" });
 
   var wkStart = new Date(); wkStart.setDate(wkStart.getDate() - ((wkStart.getDay()+6)%7)); wkStart.setHours(0,0,0,0);
   var wkMin = sessions().filter(function(x){ return new Date(x.at) >= wkStart; })
                         .reduce(function(a,x){ return a + (x.minutes||0); }, 0);
   rings.push({ pct: Math.min(1, wkMin / 150), col:"#1F6F63",
-    val: wkMin ? wkMin + "m" : "\u2014", lab: wkMin ? "training<br>this week" : "no training<br>logged yet" });
+    val: wkMin ? wkMin + "m" : "\u2014", lab: wkMin ? "Training<br>this week" : "Training<br>none logged" });
 
   var sleepR = R.filter(function(r){ return dayKey(r) === today && totalSleep(r) != null; })[0];
   var slp = sleepR ? totalSleep(sleepR) : null;
   rings.push({ pct: slp ? Math.min(1, slp/8) : 0, col:"#7A5CA8",
-    val: slp ? slp + "h" : "\u2014", lab: slp ? "sleep<br>last night" : "sleep<br>not logged" });
+    val: slp ? slp + "h" : "\u2014", lab: slp ? "Sleep<br>last night" : "Sleep<br>not logged" });
 
   if(r30.length){
     var inT = r30.filter(function(r){ return r.sys < s.targetSys && r.dia < s.targetDia; }).length / r30.length;
-    rings.push({ pct: Math.min(1, inT), col:"#C98A1E", val: Math.round(inT*100) + "%", lab:"in target<br>30 days" });
+    rings.push({ pct: Math.min(1, inT), col:"#C98A1E", val: Math.round(inT*100) + "%", lab:"In target<br>30 days" });
   }
 
   html += '<div class="rings">' + rings.map(function(x){
@@ -1180,6 +1212,14 @@ function renderDash(){
   }).join("") + '</div>';
 
   /* quick actions */
+  var sw = suspectWeights();
+  if(sw.bad && sw.bad.length){
+    html += '<div class="fflag" style="margin-top:16px"><b>A weight entry looks wrong.</b> '
+      + sw.bad.length + ' entr' + (sw.bad.length===1?"y is":"ies are") + ' far outside your others, which usually means '
+      + 'the unit toggle was on the wrong setting. '
+      + '<button type="button" id="goFixWt" style="font:inherit;background:none;border:none;color:var(--sys);'
+      + 'cursor:pointer;padding:0;text-decoration:underline">Fix it in Settings</button></div>';
+  }
   html += '<div class="quick">'
     + '<button type="button" class="quickBtn" data-go="reading">Take a reading<b>jump to the form</b></button>'
     + '<button type="button" class="quickBtn" data-go="train">Today\u2019s session<b>see the plan</b></button>'
@@ -1188,6 +1228,11 @@ function renderDash(){
     + '</div>';
 
   box.innerHTML = html;
+  var fw = document.getElementById("goFixWt");
+  if(fw) fw.onclick = function(){ showTab("settings"); setTimeout(function(){
+    var el = document.getElementById("fixWtBox");
+    if(el) el.scrollIntoView({behavior:"smooth", block:"center"});
+  }, 120); };
   var nb = document.getElementById("setName");
   if(nb) nb.onclick = function(){
     var n = prompt("What should the app call you?");
@@ -1242,7 +1287,7 @@ function renderMetrics(){
     { l:"Evening", v:pair(pm), s:pm.length+" readings" },
     { l:"In target, 30d", v: pctOk==null?"—":pctOk+"%", s:"under "+S().targetSys+"/"+S().targetDia },
     { l:"Morning rise", v: surge==null?"—":(surge>0?"+":"")+fmt(surge), s:"vs evening systolic" },
-    { l:"Days logged, 30d", v: Object.keys(days).length, s:"consistency" },
+    { l:"Days logged, 30 days", v: Object.keys(days).length, s:"consistency" },
     { l:"Resting pulse", v: (function(){ var p = r7.filter(function(r){ return r.pulse != null; });
         return p.length ? fmt(mean(p.map(function(r){ return r.pulse; }))) + " bpm" : "\u2014"; })(),
       s: (function(){ var p = r7.filter(function(r){ return r.pulse != null; });
@@ -1814,8 +1859,8 @@ function renderCmp(){
     var dOn = Object.keys(on.reduce(function(a,r){ a[dayKey(r)]=1; return a; },{})).length;
     var dOff = Object.keys(off.reduce(function(a,r){ a[dayKey(r)]=1; return a; },{})).length;
     html += '<div style="margin-bottom:18px"><div class="lab" style="margin-bottom:7px">'+tag+'</div><div class="cmp">'
-      + '<div class="cmpC"><div class="lab">with</div><div class="cmpV">'+pair(on)+'</div><div class="cmpN">'+on.length+' readings · '+dOn+' day'+(dOn===1?"":"s")+'</div></div>'
-      + '<div class="cmpC"><div class="lab">without</div><div class="cmpV">'+pair(off)+'</div><div class="cmpN">'+off.length+' readings · '+dOff+' day'+(dOff===1?"":"s")+'</div></div></div>'
+      + '<div class="cmpC"><div class="lab">With</div><div class="cmpV">'+pair(on)+'</div><div class="cmpN">'+on.length+' readings · '+dOn+' day'+(dOn===1?"":"s")+'</div></div>'
+      + '<div class="cmpC"><div class="lab">Without</div><div class="cmpV">'+pair(off)+'</div><div class="cmpN">'+off.length+' readings · '+dOff+' day'+(dOff===1?"":"s")+'</div></div></div>'
       + '<div class="verdict">'+(cmpMetric==="dia"?"Diastolic":"Systolic")+' runs <b>'+Math.abs(delta).toFixed(1)+' mmHg '+(delta<0?"lower":"higher")+'</b> on these days.'
       + (dOn < 4 ? ' Only '+dOn+' day'+(dOn===1?"":"s")+' tagged so far — treat this as a hint, not a result.' : '')
       + '</div></div>';
@@ -1885,9 +1930,9 @@ function renderSleep(){
   var noNap = pts.filter(function(r){ return !r.nap; });
   if(napDays.length >= 3 && noNap.length >= 3){
     html += '<div class="lab" style="margin:16px 0 7px">Days with a nap</div><div class="cmp">'
-      + '<div class="cmpC"><div class="lab">napped</div><div class="cmpV">' + pair(napDays) + '</div><div class="cmpN">'
+      + '<div class="cmpC"><div class="lab">Napped</div><div class="cmpV">' + pair(napDays) + '</div><div class="cmpN">'
       + napDays.length + ' readings \u00b7 avg nap ' + fmt1(mean(napDays.map(function(r){return r.nap;}))) + 'h</div></div>'
-      + '<div class="cmpC"><div class="lab">no nap</div><div class="cmpV">' + pair(noNap) + '</div><div class="cmpN">'
+      + '<div class="cmpC"><div class="lab">No nap</div><div class="cmpV">' + pair(noNap) + '</div><div class="cmpN">'
       + noNap.length + ' readings</div></div></div>';
   }
   var rested = rows().filter(function(r){ return r.rest != null; });
@@ -1951,7 +1996,7 @@ function renderCross(){
   /* training day vs not */
   var trained = R.filter(function(r){ return sessDays[dayKey(r)]; });
   var notTrained = R.filter(function(r){ return !sessDays[dayKey(r)]; });
-  html += block("Training days", trained, notTrained, "trained that day", "no session",
+  html += block("Training days", trained, notTrained, "Trained that day", "No session",
     "Aerobic and resistance work both lower blood pressure for hours afterwards, so a same-day difference is expected. What matters more is whether your baseline shifts over weeks.");
 
   /* readings taken within 6h after a session */
@@ -1963,14 +2008,14 @@ function renderCross(){
   });
   var rest = R.filter(function(r){ return !sessDays[dayKey(r)]; });
   if(post.length >= 2 && rest.length >= 2){
-    html += block("Within six hours of training", post, rest, "post-session", "non-training days",
+    html += block("Within six hours of training", post, rest, "Post-session", "Non-training days",
       "This is the short-lived drop after exercise rather than a lasting change. Useful to see, but do not read it as progress.");
   }
 
   /* protein target hit vs not */
   var pHit = R.filter(function(r){ var m = mealDays[dayKey(r)]; return m && m.p >= t.palms; });
   var pMiss = R.filter(function(r){ var m = mealDays[dayKey(r)]; return m && m.p < t.palms; });
-  html += block("Protein target", pHit, pMiss, "target hit", "under target",
+  html += block("Protein target", pHit, pMiss, "Target hit", "Under target",
     "Protein itself is not a blood pressure lever. If a difference shows here it is more likely tracking overall eating quality on those days.");
 
   /* days logged as eaten at all vs not */
@@ -1982,7 +2027,7 @@ function renderCross(){
     var m = mealDays[dayKey(r)];
     return m && (m.p+m.c+m.v+m.f) >= (t.palms+t.carbs+t.veg+t.fats) * 0.5;
   });
-  html += block("Very low intake days", lowDays, normDays, "under half target", "normal intake",
+  html += block("Very low intake days", lowDays, normDays, "Under half target", "Normal intake",
     "Severe under-eating can lower blood pressure short term while doing you no favours at all. Do not treat a drop here as a win.");
 
   if(!html){
@@ -2181,6 +2226,20 @@ function buildRegimens(){
     var label = esc(g.name) + (g.daily && on ? " \u2713" : "");
     return '<button type="button" class="tag" aria-pressed="'+(on?"true":"false")+'" data-g="'+esc(g.name)+'">'+label+'</button>';
   }).join("");
+  var regs = S().regimens, today0 = todayStr();
+  var onCount = regs.filter(function(g){ return g.daily ? (g.lastDay === today0) : g.active; }).length;
+  var sm = document.getElementById("regSummary");
+  if(sm){
+    var names = regs.filter(function(g){ return g.daily ? (g.lastDay === today0) : g.active; })
+                    .map(function(g){ return g.name; });
+    sm.textContent = onCount
+      ? (names.length <= 2 ? names.join(", ") : onCount + " marked")
+      : "nothing marked \u2014 tap to set";
+  }
+  var det = document.getElementById("regDetails");
+  if(det && !det.dataset.touched && regs.length > 4 && window.innerWidth < 520) det.open = false;
+  if(det) det.addEventListener("toggle", function(){ det.dataset.touched = "1"; });
+
   Array.prototype.forEach.call(document.querySelectorAll("#regBox .tag"), function(b){
     b.onclick = function(){
       var on = b.getAttribute("aria-pressed") === "true";
@@ -2365,14 +2424,14 @@ function renderGoal(){
       cells.push({ l:"Weeks left", v: wks > 0 ? wks.toFixed(1) : "past", s: s.goalDate });
       cells.push({ l:"Rate needed", v: need != null ? need.toFixed(2) + " " + u + "/wk" : "\u2014", s:"to hit the date" });
       var pctBw = (need != null && cur) ? need / cur * 100 : null;
-      cells.push({ l:"As % body weight", v: pctBw != null ? pctBw.toFixed(2) + "%" : "\u2014",
+      cells.push({ l:"As % of body weight", v: pctBw != null ? pctBw.toFixed(2) + "%" : "\u2014",
         s: pctBw == null ? "" : (pctBw <= 1.0 ? "inside the usual band" : "faster than usual guidance") });
       if(series.length >= 3){
         var span = (series[series.length-1].t - series[0].t) / (7 * 864e5);
         var actual = span > 0.5 ? moved / span : null;
         cells.push({ l:"Actual rate", v: actual != null ? actual.toFixed(2) + " " + u + "/wk" : "too early", s:"measured from your log" });
         if(actual != null && need != null){
-          cells.push({ l:"On track?", v: (actual <= need + 0.05 ? "yes" : "behind"), s:"actual vs needed" });
+          cells.push({ l:"On track", v: (actual <= need + 0.05 ? "yes" : "behind"), s:"actual vs needed" });
         }
       }
     }
