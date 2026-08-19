@@ -1,81 +1,73 @@
 # Pressure
 
-A personal health logbook that runs entirely in the browser. Blood pressure,
-training, food, sleep and weight in one place, with the analysis that most
-tracking apps leave out.
+A private blood pressure logbook. Runs entirely in the browser, stores everything
+on the device, and sends nothing anywhere.
 
-Built for one person's use. Not a medical device, not medical advice.
-
-## What it does
-
-- **Blood pressure** — session averaging (enter two or three readings, saves the
-  mean), morning and evening windows, MAP, pulse pressure, variability as SD, CV
-  and ARV, time in target
-- **Training** — a plan generator that adapts to your equipment, available days,
-  session length and any joints you need to work around, with exercise cues
-- **Food** — hand-portion logging with no weighing or calorie counting, a
-  cuisine-aware meal framework, and barcode lookup via Open Food Facts
-- **Analysis** — does what you do actually move your numbers? Training days
-  against rest days, sleep against morning readings, before and after starting
-  a supplement, all with honest sample-size warnings
-- **Doctor's report** — a printable one-page summary a clinician can read in
-  two minutes
-- **Assistant** — optional chat that reasons over your own logged data
-
-## Running it
-
-Static files. Any web server works.
-
-```bash
-npx serve -l 3007
-```
-
-Or deploy to Vercel. The `api/` folder is a serverless function for the
-assistant; without it the app still runs, it just asks each user for their own
-API key.
-
-## Deploying
+## Deploy
 
 ```bash
 npx vercel deploy --prod
 ```
 
-Then add environment variables in the Vercel dashboard if you want the
-assistant available without users bringing their own key:
+That's it — no build step, no dependencies to install. Any static host works
+(Netlify, Cloudflare Pages, GitHub Pages, S3); `vercel.json` only sets cache
+headers so updates land promptly.
 
-| Name | Purpose |
-|---|---|
-| `ANTHROPIC_API_KEY` | server-side key so nobody needs their own |
-| `ALLOWED_ORIGIN` | restricts the endpoint to your domain |
-| `DAILY_LIMIT` | questions per IP per day, default 25 |
-
-## Shipping a change
-
-Bump the cache name in `sw.js` before deploying, or the service worker keeps
-serving the old version:
-
-```js
-const CACHE = "pressure-v32";   // was v31
-```
-
-## Data
-
-Everything lives in `localStorage` on the device, with a mirror in IndexedDB as
-a safety net. There is no server, no account and no sync. Data is per-device and
-per-browser.
-
-**Export a backup regularly.** History → Back up all data. That file is the only
-real protection against clearing site data or changing phones.
-
-The one exception to local-only: asking the assistant a question sends a summary
-of your logged data to Anthropic. It is off by default.
+Once it's live, open the URL on your phone and use **Add to Home Screen**. It
+installs as a standalone app with its own icon, opens without browser chrome,
+and works offline.
 
 ## Files
 
-| File | What it is |
+| File | Purpose |
 |---|---|
-| `index.html` | the entire application |
-| `api/chat.js` | serverless proxy for the assistant |
-| `sw.js` | service worker, offline caching and update prompts |
-| `manifest.json` | install metadata |
-| `vercel.json` | cache and security headers |
+| `index.html` | The whole application — markup, styles, logic |
+| `chart.umd.js` | Chart.js 4.4.1, vendored so nothing loads from a CDN |
+| `sw.js` | Service worker: offline caching and update prompts |
+| `manifest.json` | Install metadata |
+| `icon-*.png`, `apple-touch-icon.png`, `favicon.png` | Icons |
+| `vercel.json` | Cache and security headers |
+
+## Shipping a change
+
+Edit `index.html`, then bump the cache name in `sw.js`:
+
+```js
+const CACHE = "pressure-v2";
+```
+
+Deploy. Anyone with the app open sees a "New version ready" prompt; tapping it
+swaps in the new version and reloads. Skipping the bump means users stay on the
+cached copy indefinitely.
+
+## Data
+
+Everything lives in `localStorage` under the key `pressure.v1`. That means:
+
+- Nothing leaves the device, and there is no account, server or analytics.
+- Data is per-browser. A different phone is a different logbook.
+- Clearing site data erases it. **Use the backup button.**
+
+Settings → History → *Back up all data* writes a JSON file; *Restore from
+backup* reads one. That file is the only real safety net.
+
+## What it does
+
+- Session entry: log two or three readings, saves the average
+- Morning / evening / daily / weekly views over 7, 30, 90 days or all time
+- Variability metrics: SD, coefficient of variation, average real variability
+- Time-in-target, morning rise, pulse pressure and mean arterial pressure
+- Context tags with tagged-vs-untagged comparison and sample-size warnings
+- ACC/AHA or ESC/ESH classification
+- Printable report, CSV export, JSON backup and restore
+- Multiple profiles, dark mode
+
+## What it is not
+
+A logbook, not a medical device. It does not measure blood pressure and does not
+give medical advice. Use a validated upper-arm cuff and enter what it shows.
+
+If this is ever shared beyond personal use, note that software interpreting
+readings for other people falls into a different regulatory category, and
+storing other people's health data brings obligations that local-only storage
+currently avoids entirely.
