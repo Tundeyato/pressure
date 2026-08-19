@@ -903,7 +903,7 @@ details.acc .accbody p{margin:0 0 8px}
 <script src="chart.umd.js"></script>
 <script>
 "use strict";
-var APP_VERSION = "v37.1";
+var APP_VERSION = "v37.2";
 var KEY = "pressure.v1";
 var DEF_TAGS = ["exercised today","after exercise","alcohol last night","salty food","slept badly","stressed","caffeine","unwell"];
 var DEF_REG = [{name:"beetroot extract",active:false,daily:true},{name:"beetroot gummy",active:false,daily:true},{name:"isometric exercise",active:false,daily:false},{name:"aerobic exercise",active:false,daily:false},{name:"potassium-rich diet",active:false},{name:"cut back salt",active:false},{name:"BP medication",active:false,daily:true}];
@@ -2622,12 +2622,49 @@ function renderLoad(){
   var strengthDays = list.filter(function(s){
     return (s.kind === "Strength" || s.kind === "Mixed") && (Date.now() - new Date(s.at).getTime()) < 7*864e5;
   }).length;
-  box.innerHTML = '<div class="verdict"><b>' + totalMin + ' minutes logged in the most recent week</b>, with '
+  /* the sessions behind that number, so a mistake can be removed here */
+  var wkStart0 = new Date(); wkStart0.setDate(wkStart0.getDate() - ((wkStart0.getDay()+6)%7)); wkStart0.setHours(0,0,0,0);
+  var thisWeek = list.filter(function(x){ return new Date(x.at) >= wkStart0; })
+                     .sort(function(a,b){ return new Date(b.at) - new Date(a.at); });
+  var wkHtml = "";
+  if(thisWeek.length){
+    wkHtml = '<div class="lab" style="margin:16px 0 8px">This week, newest first \u2014 tap \u2715 to remove a mistake</div>'
+      + thisWeek.map(function(x){
+          var dt = new Date(x.at);
+          var bits = [];
+          if(x.minutes) bits.push(x.minutes + " min");
+          if(x.cardio && (x.cardio.speed || x.cardio.incline || x.cardio.dist)){
+            bits.push([x.cardio.speed ? x.cardio.speed + " spd" : null,
+                       x.cardio.incline ? x.cardio.incline + "%" : null,
+                       x.cardio.dist ? x.cardio.dist + " dist" : null].filter(Boolean).join(" \u00b7 "));
+          }
+          if(x.sets && x.sets.length) bits.push(x.sets.length + " exercise" + (x.sets.length===1?"":"s"));
+          return '<div style="display:flex;align-items:center;gap:10px;padding:9px 11px;margin-bottom:7px;'
+            + 'border:1px solid var(--rule);border-radius:9px;background:var(--surface)">'
+            + '<div style="flex:1;min-width:0">'
+            +   '<div style="font-size:13.5px;font-weight:500">' + dt.toLocaleDateString(undefined,{weekday:"short", day:"numeric", month:"short"})
+            +     ' \u00b7 ' + x.kind + '</div>'
+            +   '<div class="lab" style="margin-top:2px">' + (bits.join(" \u00b7 ") || "no detail") + '</div>'
+            + '</div>'
+            + '<button type="button" class="del wkDel" data-sid="' + x.id + '" aria-label="Delete this session" '
+            + 'style="flex:0 0 auto;font-size:19px;padding:4px 10px">\u2715</button></div>';
+        }).join("");
+  }
+
+  box.innerHTML = wkHtml + '<div class="verdict"><b>' + totalMin + ' minutes logged in the most recent week</b>, with '
     + strengthDays + ' strength session' + (strengthDays===1?"":"s") + '. '
     + 'Public guidance is 150 minutes of moderate activity a week plus muscle-strengthening on two or more days. '
     + (totalMin >= 150 ? 'You are past the aerobic minimum. ' : 'That leaves ' + Math.max(0,150-totalMin) + ' minutes to the aerobic minimum. ')
     + (strengthDays >= 2 ? 'Strength days are covered.' : 'Strength is the half most people skip, and it is the half that preserves muscle while you lose weight.')
     + '</div>';
+
+  Array.prototype.forEach.call(box.querySelectorAll(".wkDel"), function(b){
+    b.onclick = function(){
+      if(!confirm("Delete this session? It will come out of your weekly total.")) return;
+      db.sessions = db.sessions.filter(function(x){ return x.id !== b.dataset.sid; });
+      save(); renderTrain(); toast("Session deleted");
+    };
+  });
 }
 
 function renderPlan(){
@@ -2998,8 +3035,11 @@ function renderToday(){
     + 'Anything left blank is not logged. <b>Swap</b> changes an exercise for another that trains the same movement, and it sticks for future sessions.</p>';
   var loggedToday = sessions().filter(function(x){ return dkey(new Date(x.at)) === todayStr(); }).length;
   if(loggedToday){
-    html += '<div class="insight good" style="margin-top:12px"><b>' + loggedToday + ' session logged today</b>'
-      + '<p>Counted towards your week and available to the comparisons on Insights.</p></div>';
+    html += '<div class="insight good" style="margin-top:12px"><b>' + loggedToday + ' session'
+      + (loggedToday===1?"":"s") + ' logged today</b>'
+      + '<p>Counted towards your week and available to the comparisons on Insights. '
+      + 'Logged something by mistake? <button type="button" id="goSessions" style="font:inherit;background:none;'
+      + 'border:none;color:var(--sys);cursor:pointer;padding:0;text-decoration:underline">See and delete them</button></p></div>';
   } else {
     html += '<div class="fflag" style="margin-top:12px"><b>Nothing logged today.</b> '
       + 'If you have already trained, log it below — the app has no other way of knowing, and the weekly ring and the '
@@ -3022,6 +3062,12 @@ function renderToday(){
   });
 
   /* swap an exercise for another that trains the same movement */
+  var gs = document.getElementById("goSessions");
+  if(gs) gs.onclick = function(){
+    var el = document.getElementById("loadBox");
+    if(el) el.scrollIntoView({ behavior:"smooth", block:"center" });
+  };
+
   Array.prototype.forEach.call(box.querySelectorAll(".swapBtn"), function(b){
     b.onclick = function(e){
       e.stopPropagation();
