@@ -494,7 +494,14 @@ details.acc .accbody p{margin:0 0 8px}
 
     <div class="card">
       <h2>Training load</h2>
-      <p class="h2sub">Minutes per week by type, counted from sessions you have saved above. The ring on the home screen uses the same figure, running Monday to today — so it reads zero until a session is logged, however much you actually did.</p>
+      <p class="h2sub">Minutes per <b>day</b> over the last fortnight, from sessions you have saved above. The ring on the home screen totals the current week, Monday to today — so it reads zero until a session is logged, however much you actually did.</p>
+      <div class="legend" style="margin-bottom:12px">
+        <span><span class="sw" style="background:#2A6FB5"></span>Cardio only</span>
+        <span><span class="sw" style="background:#1F6F63"></span>Strength only</span>
+        <span><span class="sw" style="background:#2E7D5B"></span>Mixed — both in one session</span>
+        <span><span class="sw" style="background:#7A5CA8"></span>Isometric</span>
+        <span><span class="sw" style="background:#C98A1E"></span>Walk</span>
+      </div>
       <div class="chartBox sm"><canvas id="chLoad" role="img" aria-label="Weekly training minutes by type">Weekly training minutes.</canvas></div>
       <div id="loadBox"></div>
     </div>
@@ -903,7 +910,7 @@ details.acc .accbody p{margin:0 0 8px}
 <script src="chart.umd.js"></script>
 <script>
 "use strict";
-var APP_VERSION = "v37.2";
+var APP_VERSION = "v38";
 var KEY = "pressure.v1";
 var DEF_TAGS = ["exercised today","after exercise","alcohol last night","salty food","slept badly","stressed","caffeine","unwell"];
 var DEF_REG = [{name:"beetroot extract",active:false,daily:true},{name:"beetroot gummy",active:false,daily:true},{name:"isometric exercise",active:false,daily:false},{name:"aerobic exercise",active:false,daily:false},{name:"potassium-rich diet",active:false},{name:"cut back salt",active:false},{name:"BP medication",active:false,daily:true}];
@@ -2595,15 +2602,21 @@ function renderLoad(){
     return;
   }
   document.getElementById("chLoad").parentNode.style.display = "";
-  var weeks = {};
+  /* one bar per day for the last 14 days, which is what people expect
+     when they look for "did I train on Tuesday" */
+  var days = {}, keys = [];
+  for(var i = 13; i >= 0; i--){
+    var dd = new Date(); dd.setDate(dd.getDate() - i); dd.setHours(12,0,0,0);
+    var kk = dd.getTime();
+    days[kk] = { Cardio:0, Strength:0, Isometric:0, Mixed:0, Walk:0 };
+    keys.push(kk);
+  }
   list.forEach(function(s){
-    var d = new Date(s.at); var day = (d.getDay()+6)%7;
-    d.setDate(d.getDate()-day); d.setHours(12,0,0,0);
-    var k = d.getTime();
-    weeks[k] = weeks[k] || { Cardio:0, Strength:0, Isometric:0, Mixed:0, Walk:0 };
-    weeks[k][s.kind] = (weeks[k][s.kind] || 0) + (s.minutes || 0);
+    var d0 = new Date(s.at); d0.setHours(12,0,0,0);
+    var k = d0.getTime();
+    if(days[k]) days[k][s.kind] = (days[k][s.kind] || 0) + (s.minutes || 0);
   });
-  var keys = Object.keys(weeks).map(Number).sort(function(a,b){ return a-b; });
+  var weeks = days;
   var COL = { Cardio:"#2A6FB5", Strength:"#1F6F63", Isometric:"#7A5CA8", Mixed:"#2E7D5B", Walk:"#C98A1E" };
   var c = axisColors();
   var opt = baseOpts();
@@ -2611,14 +2624,18 @@ function renderLoad(){
   opt.scales.y = { stacked:true, beginAtZero:true, ticks:{ color:c.tick, font:{size:10.5,family:"'IBM Plex Mono',monospace"} }, grid:{color:c.grid}, border:{display:false} };
   charts.load = new Chart(document.getElementById("chLoad"), {
     type:"bar",
-    data:{ labels: keys.map(function(k){ return new Date(k).toLocaleDateString(undefined,{month:"short",day:"numeric"}); }),
+    data:{ labels: keys.map(function(k){
+        var dt = new Date(k);
+        return dt.toLocaleDateString(undefined,{ weekday:"short" }).slice(0,2) + " " + dt.getDate();
+      }),
       datasets: ["Cardio","Strength","Isometric","Mixed","Walk"].map(function(kind){
         return { label:kind, data:keys.map(function(k){ return weeks[k][kind] || 0; }), backgroundColor:COL[kind], borderRadius:3, stacked:true };
       })},
     options: opt
   });
-  var last = weeks[keys[keys.length-1]];
-  var totalMin = Object.keys(last).reduce(function(a,k){ return a + last[k]; }, 0);
+  var wkStartT = new Date(); wkStartT.setDate(wkStartT.getDate() - ((wkStartT.getDay()+6)%7)); wkStartT.setHours(0,0,0,0);
+  var totalMin = list.filter(function(x){ return new Date(x.at) >= wkStartT; })
+                     .reduce(function(a,x){ return a + (x.minutes || 0); }, 0);
   var strengthDays = list.filter(function(s){
     return (s.kind === "Strength" || s.kind === "Mixed") && (Date.now() - new Date(s.at).getTime()) < 7*864e5;
   }).length;
@@ -3162,7 +3179,8 @@ function renderToday(){
       profile: db.activeProfile,
       at: new Date().toISOString(),
       kind: didCardio && strengthCount ? "Mixed" : (didCardio ? "Cardio" : "Strength"),
-      minutes: (cardioMin + (strengthCount ? Math.round((s.sessMin || 50) * 0.6) : 0)) || (s.sessMin || 50),
+      /* roughly 7 minutes per strength exercise including rests, plus real cardio minutes */
+      minutes: (cardioMin + strengthCount * 7) || (s.sessMin || 50),
       rpe: null,
       cardio: cardio,
       sets: sets,
@@ -3170,7 +3188,8 @@ function renderToday(){
       planIdx: idx
     });
     save(); renderTrain();
-    toast(sets.length + " exercise" + (sets.length===1?"":"s") + " logged");
+    var estMin = (cardioMin + strengthCount * 7) || (s.sessMin || 50);
+    toast(sets.length + " exercise" + (sets.length===1?"":"s") + " logged, about " + estMin + " min");
   };
 
   document.getElementById("useToday").onclick = function(){
