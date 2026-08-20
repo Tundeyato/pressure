@@ -165,7 +165,15 @@ details.acc .accbody p{margin:0 0 8px}
 .dashHi{font-size:20px;font-weight:600;letter-spacing:-.01em;margin:0;line-height:1.3}
 .dashSub{font-size:13px;color:var(--muted);margin:3px 0 18px}
 .rings{display:grid;grid-template-columns:repeat(auto-fit,minmax(76px,1fr));gap:14px;justify-items:center}
-.ring{text-align:center;width:100%}
+.ring{text-align:center;width:100%;cursor:pointer;border-radius:11px;padding:6px 2px;transition:background .15s}
+.ring:hover{background:var(--soft)}
+.ring.on{background:var(--soft)}
+.ringDetail{margin-top:14px;padding:14px 15px;border-radius:12px;background:var(--surface);border:1px solid var(--rule);
+  font-size:13.5px;line-height:1.6;color:var(--muted)}
+.ringDetail b{color:var(--ink)}
+.ringDetail .rdRow{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--soft)}
+.ringDetail .rdRow:last-child{border-bottom:none}
+.ringDetail .rdRow span:last-child{font-family:var(--mono);color:var(--ink)}
 .ring svg{display:block;margin:0 auto}
 .ringVal{font-family:var(--mono);font-size:15px;font-weight:600;margin-top:7px}
 .ringLab{font-size:10.5px;color:var(--muted);margin-top:1px;line-height:1.3}
@@ -910,7 +918,7 @@ details.acc .accbody p{margin:0 0 8px}
 <script src="chart.umd.js"></script>
 <script>
 "use strict";
-var APP_VERSION = "v38";
+var APP_VERSION = "v39";
 var KEY = "pressure.v1";
 var DEF_TAGS = ["exercised today","after exercise","alcohol last night","salty food","slept badly","stressed","caffeine","unwell"];
 var DEF_REG = [{name:"beetroot extract",active:false,daily:true},{name:"beetroot gummy",active:false,daily:true},{name:"isometric exercise",active:false,daily:false},{name:"aerobic exercise",active:false,daily:false},{name:"potassium-rich diet",active:false},{name:"cut back salt",active:false},{name:"BP medication",active:false,daily:true}];
@@ -1219,33 +1227,52 @@ function renderDash(){
   var rings = [];
 
   var goalReads = 2;
-  rings.push({ pct: Math.min(1, todayR.length / goalReads), col:"#2A6FB5",
-    val: todayR.length + "/" + goalReads, lab:"Readings<br>today" });
+  rings.push({ id:"reads", pct: Math.min(1, todayR.length / goalReads), col:"#2A6FB5",
+    val: todayR.length >= goalReads ? todayR.length + " \u2713" : todayR.length + " of " + goalReads,
+    lab:"Readings<br>today" });
 
   var t = eatTarget();
   var m = meals().filter(function(x){ return x.d === today; })[0];
-  rings.push({ pct: m ? Math.min(1, m.p / t.palms) : 0, col:"#2E7D5B",
-    val: (m ? m.p : 0) + "/" + t.palms, lab:"Protein<br>today" });
+  rings.push({ id:"protein", pct: m ? Math.min(1, m.p / t.palms) : 0, col:"#2E7D5B",
+    val: (m ? m.p : 0) + " of " + t.palms, lab:"Protein<br>today" });
 
   var wkStart = new Date(); wkStart.setDate(wkStart.getDate() - ((wkStart.getDay()+6)%7)); wkStart.setHours(0,0,0,0);
   var wkMin = sessions().filter(function(x){ return new Date(x.at) >= wkStart; })
                         .reduce(function(a,x){ return a + (x.minutes||0); }, 0);
-  rings.push({ pct: Math.min(1, wkMin / 150), col:"#1F6F63",
+  rings.push({ id:"training", pct: Math.min(1, wkMin / 150), col:"#1F6F63",
     val: wkMin ? wkMin + "m" : "0m", lab:"Training<br>this week" });
 
   var sleepR = R.filter(function(r){ return dayKey(r) === today && totalSleep(r) != null; })[0];
   var slp = sleepR ? totalSleep(sleepR) : null;
-  rings.push({ pct: slp ? Math.min(1, slp/8) : 0, col:"#7A5CA8",
+  rings.push({ id:"sleep", pct: slp ? Math.min(1, slp/8) : 0, col:"#7A5CA8",
     val: slp ? slp + "h" : "\u2014", lab: slp ? "Sleep<br>last night" : "Sleep<br>not logged" });
 
   if(r30.length){
     var inT = r30.filter(function(r){ return r.sys < s.targetSys && r.dia < s.targetDia; }).length / r30.length;
-    rings.push({ pct: Math.min(1, inT), col:"#C98A1E", val: Math.round(inT*100) + "%", lab:"In target<br>30 days" });
+    rings.push({ id:"target", pct: Math.min(1, inT), col:"#C98A1E", val: Math.round(inT*100) + "%", lab:"In target<br>30 days" });
+  }
+
+  /* sixth ring: how far along the weight goal you are */
+  var lwR = latestWeight();
+  if(lwR && s.goalWt){
+    var ws = weightSeries();
+    var startW = fromKgW(ws[0].w), nowW = fromKgW(lwR.w), goalW = s.goalWt;
+    var span = Math.abs(startW - goalW);
+    var done = span > 0 ? Math.abs(startW - nowW) / span : 0;
+    if((startW > goalW && nowW > startW) || (startW < goalW && nowW < startW)) done = 0;
+    rings.push({ id:"goal", pct: Math.min(1, done), col:"#B4552E",
+      val: Math.round(Math.min(1, done) * 100) + "%", lab:"Toward<br>goal weight" });
+  } else {
+    var pulse7 = r7.filter(function(r){ return r.pulse != null; });
+    rings.push({ id:"pulse", pct: pulse7.length ? Math.min(1, 100 / mean(pulse7.map(function(r){ return r.pulse; }))) : 0,
+      col:"#B4552E", val: pulse7.length ? Math.round(mean(pulse7.map(function(r){ return r.pulse; }))) : "\u2014",
+      lab:"Resting<br>pulse" });
   }
 
   html += '<div class="rings">' + rings.map(function(x){
-    return '<div class="ring">' + ringSvg(x.pct, x.col) + '<div class="ringVal">' + x.val + '</div><div class="ringLab">' + x.lab + '</div></div>';
-  }).join("") + '</div>';
+    return '<div class="ring" data-r="' + (x.id||"") + '" role="button" tabindex="0">' + ringSvg(x.pct, x.col)
+      + '<div class="ringVal">' + x.val + '</div><div class="ringLab">' + x.lab + '</div></div>';
+  }).join("") + '</div><div id="ringDetail"></div>';
 
   /* quick actions */
   var sw = suspectWeights();
@@ -1269,6 +1296,100 @@ function renderDash(){
     var el = document.getElementById("fixWtBox");
     if(el) el.scrollIntoView({behavior:"smooth", block:"center"});
   }, 120); };
+  /* tapping a ring opens a detail drawer under the row */
+  function rdRow(a, b){ return '<div class="rdRow"><span>' + a + '</span><span>' + b + '</span></div>'; }
+
+  function ringDetail(id){
+    var t2 = eatTarget();
+    if(id === "reads"){
+      if(!todayR.length) return '<b>No readings yet today.</b> Two is a sensible daily habit \u2014 one in the morning within an hour of waking, one in the evening.';
+      var rowsHtml = todayR.slice().sort(function(a,b){ return ts(a)-ts(b); }).map(function(r){
+        var dt = new Date(r.at);
+        return rdRow(pad(dt.getHours()) + ":" + pad(dt.getMinutes()) + (isAm(r) ? " morning" : isPm(r) ? " evening" : ""),
+          r.sys + "/" + r.dia + (r.pulse ? " \u00b7 " + r.pulse + " bpm" : ""));
+      }).join("");
+      return '<b>' + todayR.length + ' reading' + (todayR.length===1?"":"s") + ' today</b>' + rowsHtml
+        + '<div style="margin-top:9px">Average today ' + pair(todayR) + '. Target is two a day \u2014 more is fine, it just does not fill the ring further.</div>';
+    }
+    if(id === "protein"){
+      if(!m) return '<b>Nothing logged today.</b> Tap the counters on the Food tab as you eat. Protein first \u2014 it is the one that protects muscle while you lose weight.';
+      return '<b>Today so far</b>'
+        + rdRow("Protein", m.p + " of " + t2.palms + " palms")
+        + rdRow("Carbs", m.c + " of " + t2.carbs + " cupped hands")
+        + rdRow("Vegetables", m.v + " of " + t2.veg + " fists")
+        + rdRow("Fat", m.f + " of " + t2.fats + " thumbs")
+        + '<div style="margin-top:9px">' + (m.p >= t2.palms ? "Protein target met."
+            : (t2.palms - m.p) + " protein portion" + ((t2.palms - m.p)===1?"":"s") + " short, roughly "
+              + Math.round((t2.palms - m.p) * 25) + "g.") + '</div>';
+    }
+    if(id === "training"){
+      var wk = sessions().filter(function(x){ return new Date(x.at) >= wkStart; })
+                         .sort(function(a,b){ return new Date(b.at) - new Date(a.at); });
+      if(!wk.length) return '<b>Nothing logged this week.</b> The week runs Monday to today. Log a session on the Train tab and it appears here \u2014 going to the gym does not register on its own.';
+      return '<b>' + wkMin + ' minutes across ' + wk.length + ' session' + (wk.length===1?"":"s") + '</b>'
+        + wk.map(function(x){
+            return rdRow(new Date(x.at).toLocaleDateString(undefined,{weekday:"short", day:"numeric"}) + " \u00b7 " + x.kind,
+              (x.minutes || 0) + " min");
+          }).join("")
+        + '<div style="margin-top:9px">' + (wkMin >= 150 ? "Past the 150-minute guideline."
+            : (150 - wkMin) + " minutes to the 150-minute guideline.") + '</div>';
+    }
+    if(id === "sleep"){
+      if(!sleepR) return '<b>No sleep logged today.</b> Add it on a morning reading \u2014 hours slept, any nap, and how rested you felt. Quality often matters more than hours, which is why both are there.';
+      return '<b>Last night</b>'
+        + rdRow("Hours slept", (sleepR.sleep != null ? sleepR.sleep + "h" : "\u2014"))
+        + (sleepR.nap != null ? rdRow("Daytime nap", sleepR.nap + "h") : "")
+        + rdRow("Total", slp + "h")
+        + (sleepR.rest != null ? rdRow("How rested", sleepR.rest + " out of 5") : "")
+        + '<div style="margin-top:9px">Ring fills at 8 hours. Your morning reading that day was ' + sleepR.sys + "/" + sleepR.dia + '.</div>';
+    }
+    if(id === "target"){
+      var inC = r30.filter(function(r){ return r.sys < s.targetSys && r.dia < s.targetDia; }).length;
+      return '<b>Last 30 days against ' + s.targetSys + '/' + s.targetDia + '</b>'
+        + rdRow("Inside target", inC + " readings")
+        + rdRow("Above target", (r30.length - inC) + " readings")
+        + rdRow("Average", pair(r30))
+        + '<div style="margin-top:9px">A single reading above target means very little. The share over weeks is the number worth watching.</div>';
+    }
+    if(id === "goal"){
+      var ws2 = weightSeries();
+      var st = fromKgW(ws2[0].w), nw = fromKgW(lwR.w), gl = s.goalWt, u = wtUnit();
+      var out = '<b>Weight journey</b>'
+        + rdRow("Started at", st.toFixed(1) + " " + u)
+        + rdRow("Now", nw.toFixed(1) + " " + u)
+        + rdRow("Goal", gl + " " + u)
+        + rdRow("To go", (nw - gl).toFixed(1) + " " + u);
+      if(s.goalDate){
+        var wks = (new Date(s.goalDate + "T12:00").getTime() - Date.now()) / (7*864e5);
+        if(wks > 0) out += rdRow("Rate needed", ((nw - gl) / wks).toFixed(2) + " " + u + "/week");
+      }
+      return out + '<div style="margin-top:9px">0.5 to 1.0% of body weight a week is the range usually called sustainable.</div>';
+    }
+    if(id === "pulse"){
+      var p7 = r7.filter(function(r){ return r.pulse != null; });
+      if(!p7.length) return '<b>No pulse logged in the last week.</b> Most cuffs report it alongside the reading \u2014 enter it in the third box.';
+      return '<b>Resting pulse, last 7 days</b>'
+        + rdRow("Average", fmt(mean(p7.map(function(r){ return r.pulse; }))) + " bpm")
+        + rdRow("Range", Math.min.apply(null, p7.map(function(r){return r.pulse;})) + "\u2013" + Math.max.apply(null, p7.map(function(r){return r.pulse;})))
+        + rdRow("Readings", p7.length)
+        + '<div style="margin-top:9px">Normal is 60 to 100. Higher resting pulse tracks with sympathetic activity, the same thing that drives the lower blood pressure number.</div>';
+    }
+    return "";
+  }
+
+  Array.prototype.forEach.call(box.querySelectorAll(".ring"), function(rEl){
+    function open(){
+      var det = document.getElementById("ringDetail");
+      var was = rEl.classList.contains("on");
+      Array.prototype.forEach.call(box.querySelectorAll(".ring"), function(o){ o.classList.remove("on"); });
+      if(was){ det.innerHTML = ""; return; }
+      rEl.classList.add("on");
+      det.innerHTML = '<div class="ringDetail">' + ringDetail(rEl.dataset.r) + '</div>';
+    }
+    rEl.onclick = open;
+    rEl.onkeydown = function(e){ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); open(); } };
+  });
+
   var nb = document.getElementById("setName");
   if(nb) nb.onclick = function(){
     var n = prompt("What should the app call you?");
